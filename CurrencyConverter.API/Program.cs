@@ -51,7 +51,7 @@ builder.Services.AddScoped<IExchangeRateService, FrankfurterService>();
 builder.Services.AddScoped<ExchangeRateServiceProviderFactory>();
 builder.Services.AddScoped<ILoggingService, SerilogLoggingService>();
 
-// In real scenarion JWT Key should be saved in confidential key data store. For now storing it in appsettings for simplicity.
+// In real scenario JWT Key should be saved in confidential key data store (e.g. GitHub Actions-Secrets). For now storing it in appsettings for simplicity.
 var jwtKey = builder.Configuration["Jwt:Key"];
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

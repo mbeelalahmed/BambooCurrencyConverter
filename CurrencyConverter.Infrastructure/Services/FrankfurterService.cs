@@ -74,7 +74,12 @@ namespace CurrencyConverter.Infrastructure.Services
             var cacheKey = $"convert_{from}_{to}";
             if (!_cache.TryGetValue(cacheKey, out decimal rate))
             {
+                _logger.LogInfo("Calling Frankfurter API method: convert");
+
                 var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetAsync($"latest?from={from}&to={to}&amount={amount}"));
+
+                _logger.LogInfo("Frankfurter API Response: {StatusCode}", response.StatusCode);
+
                 response.EnsureSuccessStatusCode();
 
                 var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -100,7 +105,11 @@ namespace CurrencyConverter.Infrastructure.Services
                 var cacheKey = $"historical_{baseCurrency}_{date:yyyyMMdd}";
                 if (!_cache.TryGetValue(cacheKey, out ExchangeRate rate))
                 {
+                    _logger.LogInfo("Calling Frankfurter API method: historical");
+
                     var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetAsync($"{date:yyyy-MM-dd}?base={baseCurrency}"));
+                    
+                    _logger.LogInfo("Frankfurter API Response: {StatusCode}", response.StatusCode);
                     response.EnsureSuccessStatusCode();
                     var result = JsonSerializer.Deserialize<FrankfurterLatestResponseDto>(
                         await response.Content.ReadAsStringAsync(),

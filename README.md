@@ -25,7 +25,7 @@ A robust, scalable, and secure currency conversion API.
 ### Setup Instructions
 ```bash
 # Clone the repo
-$ git clone https://github.com/your-username/CurrencyConverterAPI.git
+$ git clone https://github.com/mbeelalahmed/CurrencyConverterAPI.git
 $ cd CurrencyConverterAPI
 
 # Restore packages
@@ -41,7 +41,7 @@ $ dotnet test
 ---
 
 ## Security & Access:
-- **JWT Authentication** with `super-secret-key` in `Program.cs`
+- **JWT Authentication** with `dummy-key` in `Appsettings`
 - **RBAC:**
   - `/api/v1/exchange/historical` and `/convert` → `User`, `Admin` only
   - `/latest` → `Admin` & `operator`
@@ -92,14 +92,6 @@ builder.Services.AddApiVersioning(options =>
 
 ---
 
-## Security & Access Control
-- **JWT Authentication** with `dummy-key` in `appsettings`, it should come from 
-- **RBAC:**
-  - `/api/v1/exchange/historical` and `/convert` → `User`, `admin`
-  - `/historical` → `admin` & `operator`
-
----
-
 ## Deploy to Cluster
 ```bash
 kubectl apply -f k8s/deployment.yaml
@@ -110,7 +102,7 @@ kubectl apply -f k8s/service.yaml
 ## Assumptions
 - No support for TRY, PLN, THB, and MXN
 - Frankfurter is the only provider for now (more can be added via factory)
-- No persistence layer required — all data fetched via external API
+- No persistence layer required, all data fetched via external API
 - Only Valid input is passed to APIs
 
 ## Scalability
