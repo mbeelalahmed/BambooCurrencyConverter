@@ -1,25 +1,50 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: currency-converter-api
+  name: currency-converter-deployment
   labels:
-    app: currency-converter-api
+    app: currency-converter
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: currency-converter-api
+      app: currency-converter
   template:
     metadata:
       labels:
-        app: currency-converter-api
+        app: currency-converter
     spec:
       containers:
         - name: currency-converter
-          image: <docker-username>/currency-converter-api:latest
-          imagePullPolicy: Always
+          image: <mbeelalahmed-its-dummy>/currency-converter-api:latest
           ports:
             - containerPort: 80
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: Production
+              value: "Production"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: currency-converter-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: currency-converter-deployment
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

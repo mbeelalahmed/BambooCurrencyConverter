@@ -97,6 +97,7 @@ builder.Services.AddApiVersioning(options =>
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 ```
+
 ---
 
 ## Assumptions
@@ -110,3 +111,15 @@ kubectl apply -f service.yaml
 - Kubernetes-ready with deployment & service manifests
 - Stateless API allows easy horizontal scaling
 - In-memory cache used, ready to switch to `IDistributedCache` (e.g., Redis)
+
+## Test Coverage
+- To generate coverage report, use below commands in Tests projects root level
+```bash
+dotnet test --no-build --logger "console;verbosity=detailed"
+
+dotnet test --collect:"XPlat Code Coverage"
+
+reportgenerator -reports:"TestResults/**/coverage.cobertura.xml" -targetdir:"coverage-report" -reporttypes:Html
+```
+
+---

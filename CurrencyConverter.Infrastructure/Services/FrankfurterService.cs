@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Polly;
 using Polly.CircuitBreaker;
 using Polly.Retry;
+using System.Globalization;
 using System.Text.Json;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -40,30 +41,15 @@ namespace CurrencyConverter.Infrastructure.Services
 
         public async Task<ExchangeRate> GetLatestRatesAsync(string baseCurrency)
         {
-             if (_cache.TryGetValue($"latest_{baseCurrency}", out ExchangeRate cached))
+            var cacheKey = $"latest_{baseCurrency}";
+            if (_cache.TryGetValue(cacheKey, out ExchangeRate cached))
                  return cached;
 
-            _logger.LogInfo("Calling Frankfurter API method: latest");
+            var result = await ProcessRequestAndPrepareExchangeRateResult($"latest?base={baseCurrency}");
 
-            var response = await _policy.ExecuteAsync(() =>
-                _httpClient.GetAsync($"latest?base={baseCurrency}")
-            );
+            _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
 
-            response.EnsureSuccessStatusCode();
-
-            var result = JsonSerializer.Deserialize<FrankfurterLatestResponseDto>(
-                await response.Content.ReadAsStringAsync(),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            if (result is null)
-            {
-                throw new InvalidOperationException("Failed to deserialize exchange rate data.");
-            }
-
-            _logger.LogInfo("Frankfurter API Response: {StatusCode}", response.StatusCode);
-
-            _cache.Set($"latest_{baseCurrency}", result, TimeSpan.FromMinutes(30));
-            return result.ToDomainModel();
+            return result;
         }
 
         public async Task<decimal> ConvertCurrencyAsync(string from, string to, decimal amount)
@@ -74,17 +60,12 @@ namespace CurrencyConverter.Infrastructure.Services
             var cacheKey = $"convert_{from}_{to}";
             if (!_cache.TryGetValue(cacheKey, out decimal rate))
             {
-                _logger.LogInfo("Calling Frankfurter API method: convert");
+                var responseContent = JsonDocument.Parse(await ProcessRequest($"latest?from={from}&to={to}&amount={amount}"));
 
-                var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetAsync($"latest?from={from}&to={to}&amount={amount}"));
+                var value = responseContent.RootElement.GetProperty("rates").EnumerateObject().First().Value.GetDecimal();
 
-                _logger.LogInfo("Frankfurter API Response: {StatusCode}", response.StatusCode);
+                _cache.Set(cacheKey, value, TimeSpan.FromMinutes(5));
 
-                response.EnsureSuccessStatusCode();
-
-                var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                var value = json.RootElement.GetProperty("rates").EnumerateObject().First().Value.GetDecimal();
-                _cache.Set(cacheKey, value, TimeSpan.FromHours(1));
                 return value;
             }
             return rate;
@@ -98,42 +79,72 @@ namespace CurrencyConverter.Infrastructure.Services
                                         .Skip((page - 1) * size)
                                         .Take(size);
 
-            var results = new List<ExchangeRate>();
+            var startDate = pagedDates.First();
+            var endDate = pagedDates.Last();
 
-            foreach (var date in pagedDates)
-            {
-                var cacheKey = $"historical_{baseCurrency}_{date:yyyyMMdd}";
-                if (!_cache.TryGetValue(cacheKey, out ExchangeRate rate))
-                {
-                    _logger.LogInfo("Calling Frankfurter API method: historical");
+            var cacheKey = $"historical_{baseCurrency}_{startDate:yyyyMMdd}_{end:yyyyMMdd}";
+            if (_cache.TryGetValue(cacheKey, out List<ExchangeRate> cached))
+                return cached;
 
-                    var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetAsync($"{date:yyyy-MM-dd}?base={baseCurrency}"));
-                    
-                    _logger.LogInfo("Frankfurter API Response: {StatusCode}", response.StatusCode);
-                    response.EnsureSuccessStatusCode();
-                    var result = JsonSerializer.Deserialize<FrankfurterLatestResponseDto>(
-                        await response.Content.ReadAsStringAsync(),
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var result = await ProcessRequestAndPrepareExchangeRateListResult($"{startDate:yyyy-MM-dd}..{endDate:yyyy-MM-dd}?base={baseCurrency}");
+             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
 
-                    if (result is null)
-                    {
-                        throw new InvalidOperationException("Failed to deserialize exchange rate data.");
-                    }
-                    _cache.Set(cacheKey, result.ToDomainModel(), TimeSpan.FromHours(1));
-                    results.Add(result.ToDomainModel());
-                }
-                else
-                {
-                    results.Add(rate);
-                }
-            }
-
-            return results;
+            return result;
         }
 
         public bool CanHandle(string providerName)
         {
             return providerName.Equals("frankfurter", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<string> ProcessRequest(string apiPath)
+        {
+            _logger.LogInfo("Calling Frankfurter API method: " + apiPath);
+
+            var response = await _policy.ExecuteAsync(() => _httpClient.GetAsync(apiPath));
+
+            response.EnsureSuccessStatusCode();
+
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            _logger.LogInfo("Frankfurter API Response: {Response}, StatusCode: {StatusCode}", responseContent, response.StatusCode);
+
+            return responseContent;
+        }
+
+        private async Task<ExchangeRate> ProcessRequestAndPrepareExchangeRateResult(string apiPath)
+        {
+            var responseContent = await ProcessRequest(apiPath);
+
+            var result = JsonSerializer.Deserialize<FrankfurterLatestResponseDto>(
+                responseContent,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            
+            return result?.ToDomainModel();
+        }
+
+        private async Task<List<ExchangeRate>> ProcessRequestAndPrepareExchangeRateListResult(string apiPath)
+        {
+            var responseContent = await ProcessRequest(apiPath);
+
+            var result = JsonSerializer.Deserialize<FrankfurterHistoricalResponseDto>(
+                responseContent,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var exchangeRateList = new List<ExchangeRate>();
+
+            foreach (var item in result.Rates)
+            {
+                var exchangeRate = new ExchangeRate
+                {
+                    BaseCurrency = result.BaseCurrency,
+                    Date = DateTime.ParseExact(item.Key, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    Rates = item.Value
+                };
+                exchangeRateList.Add(exchangeRate);
+            }
+
+            return exchangeRateList;
         }
     }
 }

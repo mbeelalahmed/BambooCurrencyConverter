@@ -1,5 +1,4 @@
 ﻿using CurrencyConverter.Domain.Entities;
-
 namespace CurrencyConverter.Application.Interfaces
 {
     public interface IExchangeRateService

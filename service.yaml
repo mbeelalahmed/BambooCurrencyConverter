@@ -3,10 +3,10 @@ kind: Service
 metadata:
   name: currency-converter-service
 spec:
-  type: LoadBalancer
   selector:
-    app: currency-converter-api
+    app: currency-converter
   ports:
     - protocol: TCP
       port: 80
       targetPort: 80
+  type: ClusterIP

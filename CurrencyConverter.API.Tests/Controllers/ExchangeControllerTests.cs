@@ -6,7 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
-namespace CurrencyConverter.API.Tests
+namespace CurrencyConverter.API.Tests.Controllers
 {
     public class ExchangeControllerTests
     {
@@ -107,6 +107,66 @@ namespace CurrencyConverter.API.Tests
 
             result.Should().BeOfType<BadRequestObjectResult>()
                   .Which.Value.Should().Be("Invalid date range");
+        }
+
+        [Fact]
+        public async Task GetHistorical_ReturnsBadRequest_OnInvalidOperation()
+        {
+            _mockService.Setup(s => s.GetHistoricalRatesAsync("USD", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 1, 10))
+                        .ThrowsAsync(new InvalidOperationException("Invalid pagination"));
+
+            var result = await _controller.GetHistorical("USD", DateTime.Today.AddDays(-5), DateTime.Today, 1, 10, "mock");
+
+            result.Should().BeOfType<BadRequestObjectResult>()
+                  .Which.Value.Should().Be("Invalid pagination");
+        }
+
+        [Fact]
+        public async Task GetLatest_ReturnsBadRequest_OnArgumentException()
+        {
+            _mockService.Setup(s => s.GetLatestRatesAsync("USD"))
+                        .ThrowsAsync(new ArgumentException("Invalid base currency"));
+
+            var result = await _controller.GetLatest("USD", "mock");
+
+            result.Should().BeOfType<BadRequestObjectResult>()
+                  .Which.Value.Should().Be("Invalid base currency");
+        }
+
+        [Fact]
+        public async Task Convert_ReturnsBadRequest_OnInvalidOperationException()
+        {
+            _mockService.Setup(s => s.ConvertCurrencyAsync("USD", "EUR", 100))
+                        .ThrowsAsync(new InvalidOperationException("Conversion not supported"));
+
+            var result = await _controller.Convert("USD", "EUR", 100, "mock");
+
+            result.Should().BeOfType<BadRequestObjectResult>()
+                  .Which.Value.Should().Be("Conversion not supported");
+        }
+
+        [Fact]
+        public async Task Convert_ReturnsInternalServerError_OnUnhandledException()
+        {
+            _mockService.Setup(s => s.ConvertCurrencyAsync("USD", "EUR", 100))
+                        .ThrowsAsync(new Exception("unexpected"));
+
+            var result = await _controller.Convert("USD", "EUR", 100, "mock");
+
+            result.Should().BeOfType<ObjectResult>()
+                  .Which.StatusCode.Should().Be(500);
+        }
+
+        [Fact]
+        public async Task GetHistorical_ReturnsInternalServerError_OnUnhandledException()
+        {
+            _mockService.Setup(s => s.GetHistoricalRatesAsync("USD", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 1, 10))
+                        .ThrowsAsync(new Exception("unexpected"));
+
+            var result = await _controller.GetHistorical("USD", DateTime.Today.AddDays(-1), DateTime.Today, 1, 10, "mock");
+
+            result.Should().BeOfType<ObjectResult>()
+                  .Which.StatusCode.Should().Be(500);
         }
     }
 }

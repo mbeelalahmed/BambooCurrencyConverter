@@ -1,4 +1,4 @@
-using CurrencyConverter.Application.Interfaces;
+using CurrencyConverter.API.Helpers;
 using CurrencyConverter.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,13 +28,13 @@ namespace CurrencyConverter.API.Controllers
                 var result = await service.GetLatestRatesAsync(baseCurrency);
                 return Ok(result);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException)
             {
                 return BadRequest(ex.Message);
             }
             catch (Exception)
             {
-                return StatusCode(500, "An unexpected error occurred. Please try again later.");
+                return StatusCode(StatusCodes.Status500InternalServerError, AppConstants.INTERNAL_SERVER_ERROR);
             }
         }
 
@@ -52,13 +52,13 @@ namespace CurrencyConverter.API.Controllers
                 var result = await service.ConvertCurrencyAsync(from, to, amount);
                 return Ok(new { result });
             }
-            catch(ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException)
             {
                 return BadRequest(ex.Message);
             }
             catch (Exception)
             {
-                return StatusCode(500, "An unexpected error occurred. Please try again later.");
+                return StatusCode(StatusCodes.Status500InternalServerError, AppConstants.INTERNAL_SERVER_ERROR);
             }
         }
 
@@ -77,13 +77,13 @@ namespace CurrencyConverter.API.Controllers
                 var result = await service.GetHistoricalRatesAsync(baseCurrency, start, end, page, size);
                 return Ok(result);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException)
             {
                 return BadRequest(ex.Message);
             }
             catch (Exception)
             {
-                return StatusCode(500, "An unexpected error occurred. Please try again later.");
+                return StatusCode(StatusCodes.Status500InternalServerError, AppConstants.INTERNAL_SERVER_ERROR);
             }
         }
     }
