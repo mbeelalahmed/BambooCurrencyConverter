@@ -46,6 +46,9 @@ public class Program
         });
 
         */
+
+        builder.Services.AddHttpContextAccessor();
+
         builder.Services.Configure<FrankfurterOptions>(
             builder.Configuration.GetSection("ExchangeRateProviders:Frankfurter"));
 
@@ -173,6 +176,8 @@ public class Program
 
         app.UseSwagger();
         app.UseSwaggerUI();
+
+        app.UseMiddleware<CorrelationIdMiddleware>();
 
         app.UseHttpsRedirection();
 

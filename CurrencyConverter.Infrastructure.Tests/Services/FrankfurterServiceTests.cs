@@ -2,6 +2,7 @@ using CurrencyConverter.Application.Interfaces;
 using CurrencyConverter.Domain.Entities;
 using CurrencyConverter.Infrastructure.Services;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Moq;
 using Moq.Protected;
@@ -12,12 +13,14 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
     public class FrankfurterServiceTests
     {
         private readonly Mock<ILoggingService> _loggerMock;
+        private readonly Mock<IHttpContextAccessor> _httpContextAccessorMock;
         private readonly IMemoryCache _memoryCache;
 
         delegate void TryGetValueCallback(object key, out object value);
         public FrankfurterServiceTests()
         {
             _loggerMock = new Mock<ILoggingService>();
+            _httpContextAccessorMock = new Mock<IHttpContextAccessor>();
             _memoryCache = new MemoryCache(new MemoryCacheOptions());
         }
 
@@ -58,7 +61,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
 
             var httpClient = CreateHttpClient(httpResponse);
 
-            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object);
+            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object, _httpContextAccessorMock.Object);
 
             var result = await service.GetLatestRatesAsync("USD");
 
@@ -84,7 +87,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
             };
 
             var httpClient = CreateHttpClient(httpResponse);
-            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object);
+            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object, _httpContextAccessorMock.Object);
 
             var first = await service.GetLatestRatesAsync("USD");
             var second = await service.GetLatestRatesAsync("USD"); // should hit cache
@@ -97,7 +100,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
         public async Task ConvertCurrencyAsync_Throws_WhenCurrencyExcluded()
         {
             var httpClient = CreateHttpClient(new HttpResponseMessage(HttpStatusCode.OK));
-            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object);
+            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object, _httpContextAccessorMock.Object);
 
             Func<Task> act = () => service.ConvertCurrencyAsync("TRY", "USD", 100);
 
@@ -122,7 +125,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
             };
 
             var httpClient = CreateHttpClient(httpResponse);
-            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object);
+            var service = new FrankfurterService(httpClient, _memoryCache, _loggerMock.Object, _httpContextAccessorMock.Object);
 
             var result = await service.ConvertCurrencyAsync("USD", "EUR", 100);
 
@@ -176,7 +179,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
             var loggerMock = new Mock<ILoggingService>();
             var memoryCache = new MemoryCache(new MemoryCacheOptions());
 
-            var service = new FrankfurterService(httpClient, memoryCache, loggerMock.Object);
+            var service = new FrankfurterService(httpClient, memoryCache, loggerMock.Object, _httpContextAccessorMock.Object);
 
             var result = await service.GetHistoricalRatesAsync(baseCurrency, date1, date2, 1, 10);
 
@@ -216,7 +219,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
 
             var httpClient = new HttpClient(handlerMock.Object);
 
-            var service = new FrankfurterService(httpClient, cacheMock.Object, loggerMock.Object);
+            var service = new FrankfurterService(httpClient, cacheMock.Object, loggerMock.Object, _httpContextAccessorMock.Object);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.GetHistoricalRatesAsync(baseCurrency, start, end, page, size));
@@ -260,7 +263,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
                 {
                     BaseAddress = new Uri("https://api.frankfurter.dev/v1/")
                 };
-                var service = new FrankfurterService(httpClient, cacheMock.Object, loggerMock.Object);
+                var service = new FrankfurterService(httpClient, cacheMock.Object, loggerMock.Object, _httpContextAccessorMock.Object);
 
                 var result = await service.GetHistoricalRatesAsync(baseCurrency, start, end, page, size);
 
@@ -284,7 +287,7 @@ namespace CurrencyConverter.Infrastructure.Tests.Services
         [InlineData("", false)]
         public void CanHandle_ReturnsExpectedResult(string providerName, bool expected)
         {
-            var service = new FrankfurterService(new HttpClient(), Mock.Of<IMemoryCache>(), Mock.Of<ILoggingService>());
+            var service = new FrankfurterService(new HttpClient(), Mock.Of<IMemoryCache>(), Mock.Of<ILoggingService>(), _httpContextAccessorMock.Object);
             var result = service.CanHandle(providerName);
             Assert.Equal(expected, result);
         }

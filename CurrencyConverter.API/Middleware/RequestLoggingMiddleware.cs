@@ -16,6 +16,13 @@ namespace CurrencyConverter.API.Middleware
         public async Task Invoke(HttpContext context)
         {
             var stopwatch = Stopwatch.StartNew();
+            
+            const string correlationHeader = "X-Correlation-ID";
+            string correlationId = context.Request.Headers.TryGetValue(correlationHeader, out var correlationIdHeader)
+                ? correlationIdHeader.ToString()
+                : Guid.NewGuid().ToString();
+
+            context.Response.Headers[correlationHeader] = correlationId;
 
             await _next(context);
 
@@ -29,8 +36,9 @@ namespace CurrencyConverter.API.Middleware
 
             string clientId = context.User?.Claims?.FirstOrDefault(c => c.Type == "client_id")?.Value;
 
-            _logger.LogInformation("HTTP {Method} {Path} responded {StatusCode} in {Elapsed}ms | Client IP: {IP} | ClientId: {ClientId}",
-                method, path, statusCode, responseTime, clientIp, clientId);
+            _logger.LogInformation(
+                "HTTP {Method} {Path} responded {StatusCode} in {Elapsed}ms | Client IP: {IP} | ClientId: {ClientId} | CorrelationId: {CorrelationId}",
+                method, path, statusCode, responseTime, clientIp, clientId, correlationId);
         }
     }
 

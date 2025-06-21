@@ -1,6 +1,7 @@
 ﻿using CurrencyConverter.Application.Interfaces;
 using CurrencyConverter.Domain.Entities;
 using CurrencyConverter.Infrastructure.DTOs;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Polly;
 using Polly.CircuitBreaker;
@@ -18,11 +19,13 @@ namespace CurrencyConverter.Infrastructure.Services
         private readonly ILoggingService _logger;
         private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
         private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
 
         private static readonly string[] ExcludedCurrencies = { "TRY", "PLN", "THB", "MXN" };
         private readonly IAsyncPolicy<HttpResponseMessage> _policy;
 
-        public FrankfurterService(HttpClient httpClient, IMemoryCache cache, ILoggingService logger)
+        public FrankfurterService(HttpClient httpClient, IMemoryCache cache, ILoggingService logger, IHttpContextAccessor contextAccessor)
         {
             _httpClient = httpClient;
             _cache = cache;
@@ -37,6 +40,7 @@ namespace CurrencyConverter.Infrastructure.Services
 
             _policy = Policy.WrapAsync(_retryPolicy, _circuitBreaker);
             _logger = logger;
+            _httpContextAccessor = contextAccessor;
         }
 
         public async Task<ExchangeRate> GetLatestRatesAsync(string baseCurrency)
@@ -99,7 +103,13 @@ namespace CurrencyConverter.Infrastructure.Services
 
         private async Task<string> ProcessRequest(string apiPath)
         {
-            _logger.LogInfo("Calling Frankfurter API method: " + apiPath);
+            var request = new HttpRequestMessage(HttpMethod.Get, apiPath);
+
+            var correlationId = _httpContextAccessor.HttpContext?.Items["X-Correlation-ID"]?.ToString();
+            if (!string.IsNullOrEmpty(correlationId))
+                request.Headers.Add("X-Correlation-ID", correlationId);
+
+            _logger.LogInfo("Calling Frankfurter API: {Path} | CorrelationId: {CorrelationId}", apiPath, correlationId);
 
             var response = await _policy.ExecuteAsync(() => _httpClient.GetAsync(apiPath));
 
@@ -107,13 +117,14 @@ namespace CurrencyConverter.Infrastructure.Services
 
             var responseContent = await response.Content.ReadAsStringAsync();
 
-            _logger.LogInfo("Frankfurter API Response: {Response}, StatusCode: {StatusCode}", responseContent, response.StatusCode);
+            _logger.LogInfo("Frankfurter API Response: {Content} | StatusCode: {StatusCode} | CorrelationId: {CorrelationId}",
+                    responseContent, response.StatusCode, correlationId);
 
             return responseContent;
         }
 
         private async Task<ExchangeRate> ProcessRequestAndPrepareExchangeRateResult(string apiPath)
-        {
+        { 
             var responseContent = await ProcessRequest(apiPath);
 
             var result = JsonSerializer.Deserialize<FrankfurterLatestResponseDto>(

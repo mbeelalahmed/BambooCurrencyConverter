@@ -43,8 +43,8 @@ $ dotnet test
 ## Security & Access:
 - **JWT Authentication** with `dummy-key` in `Appsettings`
 - **RBAC:**
-  - `/api/v1/exchange/historical` and `/convert` → `User`, `Admin` only
-  - `/latest` → `Admin` & `operator`
+  - `/api/v1/exchange/historical` and `/convert` →  `admin` only
+  - `/latest` → `admin` & `operator`
 
   - There are two users of the system
   - Admin -> username (admin), password (password) - Full API permissions           
